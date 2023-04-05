@@ -85,4 +85,5 @@ app.delete("/diagrams/:id", (req, res, next) => {
 });
 
 app.use(errorHandler);
-app.listen(3000, () => console.log("Listenning to port 3000"));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Listenning to port ${port}`));
