@@ -2,6 +2,8 @@
 const express = require("express");
 const { STATUS_CODE } = require("./utils/enums");
 const { createDiagramSchema } = require("./utils/schemas");
+const { errorHandler } = require("./utils/errorHandler");
+const { isProcessed } = require("./utils/middleWares");
 
 //initalizations
 const app = express();
@@ -42,36 +44,45 @@ app.get("/diagrams", (req, res) => {
 });
 
 // fetch 1
-app.get("/diagrams/:id", (req, res) => {
+app.get("/diagrams/:id", (req, res, next) => {
   const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
   if (!diagram) {
-    res.status(STATUS_CODE.BAD_REQUEST).send("This Diagram doesn't exist");
-    return;
+    return next({
+      statusCode: STATUS_CODE.NOT_FOUND,
+      message: "This diagram doesn't exist",
+    });
   }
   res.status(STATUS_CODE.SUCCESS).send(diagram);
 });
 
 //create
-app.post("/diagrams", (req, res) => {
+app.post("/diagrams", isProcessed, (req, res, next) => {
   const { error, value } = createDiagramSchema.validate(req.body, {
     abortEarly: false,
   });
   if (error) {
-    res.status(STATUS_CODE.BAD_REQUEST).send(error.message);
-    return;
+    return next({
+      statusCode: STATUS_CODE.BAD_REQUEST,
+      message: error.message,
+    });
   }
-  diagrams.push(value);
-  res.status(STATUS_CODE.SUCCESS).send(value);
+  const newDiagram = { id: diagrams.length + 1, ...value };
+  diagrams.push(newDiagram);
+  res.status(STATUS_CODE.SUCCESS).send(newDiagram);
 });
 
 //Delete
-app.delete("/diagrams/:id", (req, res) => {
+app.delete("/diagrams/:id", (req, res, next) => {
   const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
   if (!diagram) {
-    res.status(STATUS_CODE.NOT_FOUND).send("This diagram doesn't exist");
+    return next({
+      statusCode: STATUS_CODE.NOT_FOUND,
+      message: "This diagram doesn't exist",
+    });
   }
   diagrams = diagrams.filter((d) => d.id !== diagram.id);
   res.status(STATUS_CODE.SUCCESS).send(diagram);
 });
 
+app.use(errorHandler);
 app.listen(3000, () => console.log("Listenning to port 3000"));
