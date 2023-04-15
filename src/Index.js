@@ -4,9 +4,11 @@ const { STATUS_CODE } = require("./utils/enums");
 const { createDiagramSchema } = require("./utils/schemas");
 const { errorHandler } = require("./utils/errorHandler");
 const { isProcessed } = require("./utils/middleWares");
+const { PrismaClient } = require("@prisma/client");
 
 //initalizations
 const app = express();
+const prisma = new PrismaClient();
 
 //Memory
 let diagrams = [
@@ -35,16 +37,35 @@ app.get("/", (req, res) => {
 });
 
 //fetch all
-app.get("/diagrams", (req, res) => {
-  res
-    .status(STATUS_CODE.SUCCESS)
-    .send(
-      diagrams.length ? diagrams : "No Diagrams are available at the moment"
-    );
+app.get("/diagrams", async (req, res, next) => {
+  try {
+    const diagrams = await prisma.diagrams.findMany();
+    res
+      .status(STATUS_CODE.SUCCESS)
+      .send(diagrams.length === 0 ? "No Diagrams Available" : diagrams);
+  } catch (e) {
+    next({
+      statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR,
+      message: e.message,
+    });
+  }
 });
 
 // fetch 1
-app.get("/diagrams/:id", (req, res, next) => {
+app.get("/diagrams/:id", async (req, res, next) => {
+  try {
+    const diagram = await prisma.diagrams.findFirst({
+      where: { id: parseInt(req.params.id) },
+    });
+    res
+      .status(STATUS_CODE.SUCCESS)
+      .send(diagram ? diagram : "This Diagram isn't available");
+  } catch (e) {
+    next({
+      statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR,
+      message: e.message,
+    });
+  }
   const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
   if (!diagram) {
     return next({
@@ -56,7 +77,7 @@ app.get("/diagrams/:id", (req, res, next) => {
 });
 
 //create
-app.post("/diagrams", isProcessed, (req, res, next) => {
+app.post("/diagrams", isProcessed, async (req, res, next) => {
   const { error, value } = createDiagramSchema.validate(req.body, {
     abortEarly: false,
   });
@@ -66,22 +87,35 @@ app.post("/diagrams", isProcessed, (req, res, next) => {
       message: error.message,
     });
   }
-  const newDiagram = { id: diagrams.length + 1, ...value };
-  diagrams.push(newDiagram);
-  res.status(STATUS_CODE.SUCCESS).send(newDiagram);
+  const { name, inHouse, isProcessed } = value;
+  try {
+    const diagram = await prisma.diagrams.create({
+      data: { name, in_house: inHouse, is_processed: isProcessed },
+    });
+    res.status(STATUS_CODE.SUCCESS).send(diagram);
+  } catch (e) {
+    next({
+      statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR,
+      message: e.message,
+    });
+  }
 });
 
 //Delete
-app.delete("/diagrams/:id", (req, res, next) => {
-  const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
-  if (!diagram) {
-    return next({
-      statusCode: STATUS_CODE.NOT_FOUND,
-      message: "This diagram doesn't exist",
+app.delete("/diagrams/:id", async (req, res, next) => {
+  try {
+    const diagram = await prisma.diagrams.delete({
+      where: { id: parseInt(req.params.id) },
+    });
+    res
+      .status(STATUS_CODE.SUCCESS)
+      .send(diagram ? diagram : "Diagram doesn't exist");
+  } catch (e) {
+    next({
+      statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR,
+      message: e.message,
     });
   }
-  diagrams = diagrams.filter((d) => d.id !== diagram.id);
-  res.status(STATUS_CODE.SUCCESS).send(diagram);
 });
 
 app.use(errorHandler);
