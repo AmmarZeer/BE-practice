@@ -1,31 +1,20 @@
 //Modules
 const express = require("express");
+const { Client } = require("pg");
 const { STATUS_CODE } = require("./utils/enums");
-const { createDiagramSchema } = require("./utils/schemas");
+const { createDiagramSchema } = require("./utils/validateSchemas");
 const { errorHandler } = require("./utils/errorHandler");
 const { isProcessed } = require("./utils/middleWares");
 
 //initalizations
 const app = express();
-
-//Memory
-let diagrams = [
-  {
-    id: 1,
-    name: "Random chart",
-    inHouse: false,
-  },
-  {
-    id: 2,
-    name: "Block diagram",
-    inHouse: true,
-  },
-  {
-    id: 3,
-    name: "xyz",
-    inHouse: true,
-  },
-];
+const client = new Client({
+  user: "postgres",
+  host: "localhost",
+  database: "testDB",
+  port: 5432,
+});
+client.connect(() => console.log("connected to DB"));
 
 app.use(express.json());
 
@@ -35,28 +24,43 @@ app.get("/", (req, res) => {
 });
 
 //fetch all
-app.get("/diagrams", (req, res) => {
-  res
-    .status(STATUS_CODE.SUCCESS)
-    .send(
-      diagrams.length ? diagrams : "No Diagrams are available at the moment"
-    );
+app.get("/diagrams", async (req, res) => {
+  try {
+    const { rows, rowCount } = await client.query("select * from diagrams");
+    if (!rowCount) {
+      return next({
+        statusCode: STATUS_CODE.NOT_FOUND,
+        message: "This diagram doesn't exist",
+      });
+    }
+    res.status(STATUS_CODE.SUCCESS).send(rows);
+  } catch (e) {
+    next({ statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR, message: e.message });
+  }
 });
 
 // fetch 1
-app.get("/diagrams/:id", (req, res, next) => {
-  const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
-  if (!diagram) {
-    return next({
-      statusCode: STATUS_CODE.NOT_FOUND,
-      message: "This diagram doesn't exist",
-    });
+app.get("/diagrams/:id", async (req, res, next) => {
+  try {
+    const { rows, rowCount } = await client.query(
+      "SELECT * FROM diagrams WHERE id=($1)",
+      [req.params.id]
+    );
+    if (!rowCount) {
+      return next({
+        statusCode: STATUS_CODE.NOT_FOUND,
+        message: "This diagram doesn't exist",
+      });
+    }
+    res.status(STATUS_CODE.SUCCESS).send(rows);
+  } catch (e) {
+    next({ statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR, message: e.message });
   }
-  res.status(STATUS_CODE.SUCCESS).send(diagram);
 });
 
 //create
-app.post("/diagrams", isProcessed, (req, res, next) => {
+app.post("/diagrams", isProcessed, async (req, res, next) => {
+  //validate user input
   const { error, value } = createDiagramSchema.validate(req.body, {
     abortEarly: false,
   });
@@ -66,22 +70,33 @@ app.post("/diagrams", isProcessed, (req, res, next) => {
       message: error.message,
     });
   }
-  const newDiagram = { id: diagrams.length + 1, ...value };
-  diagrams.push(newDiagram);
-  res.status(STATUS_CODE.SUCCESS).send(newDiagram);
+  //add input to table row
+  const { name, inHouse, isProcessed } = value;
+  console.log(name, inHouse, isProcessed);
+  try {
+    const newDiagram = await client.query(
+      " INSERT INTO diagrams (name,in_house,is_processed) VALUES ($1,$2,$3)",
+      [name, inHouse, isProcessed]
+    );
+    res.status(STATUS_CODE.SUCCESS).send(newDiagram);
+  } catch (e) {
+    next({ statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR, message: e.message });
+  }
 });
 
 //Delete
-app.delete("/diagrams/:id", (req, res, next) => {
-  const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
-  if (!diagram) {
-    return next({
-      statusCode: STATUS_CODE.NOT_FOUND,
-      message: "This diagram doesn't exist",
-    });
+app.delete("/diagrams/:id", async (req, res, next) => {
+  try {
+    const { row, rowCount } = await client.query(
+      "DELETE FROM diagrams WHERE id = ($1)",
+      [req.params.id]
+    );
+    res
+      .status(STATUS_CODE.SUCCESS)
+      .send(rowCount === 0 ? "This diagram doesn't exist" : row);
+  } catch (e) {
+    next({ statusCode: STATUS_CODE.INTERNAL_SERVER_ERROR, message: e.message });
   }
-  diagrams = diagrams.filter((d) => d.id !== diagram.id);
-  res.status(STATUS_CODE.SUCCESS).send(diagram);
 });
 
 app.use(errorHandler);
