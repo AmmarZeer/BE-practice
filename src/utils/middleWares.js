@@ -1,6 +1,6 @@
 function isProcessed(req, res, next) {
   console.log("going through a middleware");
-  req.body.isProcessed = true;
+  req.body.is_processed = true;
   next();
 }
 
