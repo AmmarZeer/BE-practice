@@ -1,10 +1,12 @@
 //Modules
 const express = require("express");
 const { STATUS_CODE } = require("./utils/enums");
-const { errorHandler } = require("./utils/errorHandler");
+const { errorHandler } = require("./middlewares/errorHandler");
+const connectToDB = require("./config/db");
 const dotenv = require("dotenv").config();
 
 //initalizations
+connectToDB();
 const app = express();
 const port = process.env.PORT || 3000;
 

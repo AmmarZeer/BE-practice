@@ -1,6 +1,6 @@
 const express = require("express");
 const { STATUS_CODE } = require("../utils/enums");
-const { isProcessed } = require("../utils/middleWares");
+const { isProcessed } = require("../middlewares/middleWares");
 const { createDiagramValidationSchema } = require("../utils/validationSchema");
 const {
   getDiagrams,

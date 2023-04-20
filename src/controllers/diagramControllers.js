@@ -1,5 +1,6 @@
 const { STATUS_CODE } = require("../utils/enums");
-
+const asyncHandler = require("express-async-handler");
+const Diagram = require("../models/diagramModel");
 //Memory
 let diagrams = [
   {
@@ -18,11 +19,12 @@ let diagrams = [
     inHouse: true,
   },
 ];
-function getDiagrams(req, res, next) {
+const getDiagrams = asyncHandler(async (req, res, next) => {
   console.log(STATUS_CODE);
   res.status(STATUS_CODE.SUCCESS).json({ diagrams });
-}
-function getDiagramById(req, res, next) {
+});
+
+const getDiagramById = asyncHandler(async (req, res, next) => {
   const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
   if (!diagram) {
     return next({
@@ -31,14 +33,15 @@ function getDiagramById(req, res, next) {
     });
   }
   res.status(STATUS_CODE.SUCCESS).send(diagram);
-}
-function setDiagram(value, res, next) {
+});
+
+const setDiagram = asyncHandler(async (req, res, next) => {
   const newDiagram = { id: diagrams.length + 1, ...value };
   diagrams.push(newDiagram);
   res.status(STATUS_CODE.SUCCESS).send(newDiagram);
-}
+});
 
-function deleteDiagram(req, res, next) {
+const deleteDiagram = asyncHandler(async (req, res, next) => {
   const diagram = diagrams.find((diagram) => diagram.id == req.params.id);
   if (!diagram) {
     return next({
@@ -48,7 +51,7 @@ function deleteDiagram(req, res, next) {
   }
   diagrams = diagrams.filter((d) => d.id !== diagram.id);
   res.status(STATUS_CODE.SUCCESS).send(diagram);
-}
+});
 
 module.exports = {
   getDiagrams,
